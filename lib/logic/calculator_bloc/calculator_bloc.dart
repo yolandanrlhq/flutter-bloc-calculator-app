@@ -12,45 +12,83 @@ class CalculatorBloc extends Bloc<CalculatorEvent, CalculatorState> {
     on<DeletePressed>(_onDeletePressed);
     on<CalculatePressed>(_onCalculatePressed);
   }
-  
+
   void _onNumberPressed(NumberPressed event, Emitter<CalculatorState> emit) {
     if (event.number == '.') {
+      if (state.expression.isEmpty || state.expression == '0') {
+        emit(state.copyWith(expression: '0.'));
+        return;
+      }
+
       List<String> parts = state.expression.split(RegExp(r'[+\-x÷]'));
       String lastPart = parts.isNotEmpty ? parts.last : '';
 
+      if (lastPart.isEmpty) {
+        emit(state.copyWith(expression: '${state.expression}0.'));
+        return;
+      }
+
       if (lastPart.contains('.')) {
-        return; 
+        return;
       }
     }
-    emit(state.copyWith(expression: state.expression + event.number));
-  }
 
-  void _onOperatorPressed(OperatorPressed event, Emitter<CalculatorState> emit) {
-    if (state.expression.isNotEmpty) {
-      final lastChar = state.expression[state.expression.length - 1];
-
-      if (event.operator == '%') {
-        if (lastChar != '%') {
-          emit(state.copyWith(expression: state.expression + '%'));
-        }
-        return;
-      }
-
-      if (['+', '-', 'x', '÷'].contains(lastChar)) {
-        final updated = state.expression.substring(0, state.expression.length - 1) + event.operator;
-        emit(state.copyWith(expression: updated));
-        return;
-      }
-    } else if (event.operator == '-') {
-      emit(state.copyWith(expression: '-'));
+    if (state.expression == '0' && event.number != '.') {
+      emit(state.copyWith(expression: event.number)); 
       return;
     }
 
-    emit(state.copyWith(expression: state.expression + event.operator));
+    emit(state.copyWith(expression: state.expression + event.number));
+  }
+
+  void _onOperatorPressed(
+      OperatorPressed event,
+      Emitter<CalculatorState> emit,
+  ) {
+
+    if (state.expression.isEmpty) {
+      if (event.operator == '-') {
+        emit(state.copyWith(expression: '-'));
+      }
+      return;
+    }
+
+    final lastChar = state.expression[state.expression.length - 1];
+
+    if (event.operator == '%') {
+      if (['+', '-', 'x', '÷', '%'].contains(lastChar)) {
+        return;
+      }
+
+      emit(state.copyWith(
+        expression: '${state.expression}%',
+      ));
+      return;
+    }
+
+    if (['+', '-', 'x', '÷'].contains(lastChar)) {
+      emit(state.copyWith(
+        expression: state.expression.substring(
+              0,
+              state.expression.length - 1,
+            ) +
+            event.operator,
+      ));
+      return;
+    }
+
+    emit(state.copyWith(
+      expression: state.expression + event.operator,
+    ));
   }
 
   void _onClearPressed(ClearPressed event, Emitter<CalculatorState> emit) {
-    emit(CalculatorState(expression: '', result: '0'));
+    emit(CalculatorState(
+      expression: '',
+      result: '0',
+      lastOperator: '',
+      lastOperand: '',
+    ));
   }
 
   void _onDeletePressed(DeletePressed event, Emitter<CalculatorState> emit) {
@@ -61,14 +99,94 @@ class CalculatorBloc extends Bloc<CalculatorEvent, CalculatorState> {
     }
   }
 
-  void _onCalculatePressed(CalculatePressed event, Emitter<CalculatorState> emit) {
+  String convertPercentExpression(String exp) {
+
+    exp = exp.replaceAllMapped(
+      RegExp(r'(\d+(\.\d+)?)\*(\d+(\.\d+)?)%'),
+      (m) {
+        double a = double.parse(m.group(1)!);
+        double b = double.parse(m.group(3)!);
+        return (a * b / 100).toString();
+      },
+    );
+
+    exp = exp.replaceAllMapped(
+      RegExp(r'(\d+(\.\d+)?)/(\d+(\.\d+)?)%'),
+      (m) {
+        double a = double.parse(m.group(1)!);
+        double b = double.parse(m.group(3)!);
+        return (a / (b / 100)).toString();
+      },
+    );
+
+    exp = exp.replaceAllMapped(
+      RegExp(r'(\d+(\.\d+)?)\+(\d+(\.\d+)?)%'),
+      (m) {
+        double a = double.parse(m.group(1)!);
+        double b = double.parse(m.group(3)!);
+        return (a + (a * b / 100)).toString();
+      },
+    );
+
+    exp = exp.replaceAllMapped(
+      RegExp(r'(\d+(\.\d+)?)-(\d+(\.\d+)?)%'),
+      (m) {
+        double a = double.parse(m.group(1)!);
+        double b = double.parse(m.group(3)!);
+        return (a - (a * b / 100)).toString();
+      },
+    );
+
+    exp = exp.replaceAllMapped(
+      RegExp(r'(\d+(\.\d+)?)%'),
+      (m) {
+        return (double.parse(m.group(1)!) / 100).toString();
+      },
+    );
+
+    return exp;
+  }
+
+  void _onCalculatePressed(CalculatePressed event, Emitter<CalculatorState> emit) async {
     if (state.expression.isEmpty) return;
 
+    String currentExpression = state.expression;
+    currentExpression = currentExpression.trim();
+    String newLastOperator = state.lastOperator;
+    String newLastOperand = state.lastOperand;
+
+    bool isOnlyNumber =
+      RegExp(r'^-?\d+(\.\d+)?%?$').hasMatch(currentExpression);
+
+    if (isOnlyNumber && state.lastOperator.isNotEmpty && state.lastOperand.isNotEmpty) {
+      currentExpression = "$currentExpression${state.lastOperator}${state.lastOperand}";
+    } else {
+      RegExp regExp = RegExp(r'([+\-x÷])([0-9.]+%?)$');
+      Match? match = regExp.firstMatch(currentExpression);
+      if (match != null) {
+        newLastOperator = match.group(1) ?? '';
+        newLastOperand = match.group(2) ?? '';
+      }
+    }
+
+    final lastChar = currentExpression[currentExpression.length - 1];
+
+    if (['+', '-', 'x', '÷'].contains(lastChar)) {
+      emit(state.copyWith(result: 'Invalid Format'));
+      return;
+    }
+
+    if (currentExpression.contains('%%')) {
+      emit(state.copyWith(result: 'Invalid Format'));
+      return;
+    }
+
     try {
-      String parsedExp = state.expression
+      String parsedExp = currentExpression
           .replaceAll('x', '*')
-          .replaceAll('÷', '/')
-          .replaceAll('%', '/100');
+          .replaceAll('÷', '/');
+
+      parsedExp = convertPercentExpression(parsedExp);
 
       Parser p = Parser();
       Expression exp = p.parse(parsedExp);
@@ -80,17 +198,30 @@ class CalculatorBloc extends Bloc<CalculatorEvent, CalculatorState> {
         return;
       }
 
-      String finalResult = eval % 1 == 0 ? eval.toInt().toString() : eval.toString();
+      String finalResult = formatResult(eval);
 
       final historyBox = Hive.box<String>('calculator_history');
-      historyBox.add("${state.expression} = $finalResult");
+      await historyBox.add("$currentExpression = $finalResult");
+      await historyBox.flush();
 
       emit(state.copyWith(
         result: finalResult,
-        expression: finalResult,
+        expression: finalResult, 
+        lastOperator: newLastOperator,
+        lastOperand: newLastOperand,
       ));
     } catch (e) {
       emit(state.copyWith(result: 'Invalid Format'));
     }
+  }
+
+  String formatResult(double value) {
+    if (value == value.toInt()) {
+      return value.toInt().toString();
+    }
+
+    return value
+        .toStringAsFixed(6)
+        .replaceFirst(RegExp(r'\.?0+$'), '');
   }
 }
