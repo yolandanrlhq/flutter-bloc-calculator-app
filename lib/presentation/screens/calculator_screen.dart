@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../../data/history_model.dart';
 import '../../logic/calculator_bloc/calculator_bloc.dart';
 import '../../logic/calculator_bloc/calculator_event.dart';
-import '../../logic/calculator_bloc/calculator_state.dart';
+import '../widgets/calculator_button.dart'; 
 import '../widgets/display_area.dart';
+import 'package:intl/intl.dart';
 
 class CalculatorScreen extends StatelessWidget {
   const CalculatorScreen({super.key});
@@ -27,11 +29,10 @@ class CalculatorScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            Expanded(
+            const Expanded(
               flex: 2,
-              child: const DisplayArea(),
+              child: DisplayArea(),
             ),
-
             Expanded(
               flex: 5,
               child: LayoutBuilder(
@@ -58,7 +59,7 @@ class CalculatorScreen extends StatelessWidget {
   List<Widget> _buildButtons(BuildContext context) {
     final bloc = BlocProvider.of<CalculatorBloc>(context);
 
-    final buttons = [
+    final List<Map<String, dynamic>> buttons = [
       {'text': 'AC', 'bg': Colors.grey[700]!, 'textC': Colors.white, 'action': () => bloc.add(ClearPressed())},
       {'text': '⌫', 'bg': Colors.grey[700]!, 'textC': Colors.white, 'action': () => bloc.add(DeletePressed())},
       {'text': '%', 'bg': Colors.grey[700]!, 'textC': Colors.white, 'action': () => bloc.add(OperatorPressed('%'))},
@@ -86,26 +87,11 @@ class CalculatorScreen extends StatelessWidget {
     ];
 
     return buttons.map((b) {
-      return Padding(
-        padding: const EdgeInsets.all(4.0),
-        child: Material(
-          color: b['bg'] as Color,
-          shape: const CircleBorder(),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: b['action'] as VoidCallback, 
-            child: Center(
-              child: Text(
-                b['text'] as String,
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: b['textC'] as Color,
-                ),
-              ),
-            ),
-          ),
-        ),
+      return CalculatorButton(
+        text: b['text'] as String,
+        backgroundColor: b['bg'] as Color,
+        textColor: b['textC'] as Color,
+        onTap: b['action'] as VoidCallback,
       );
     }).toList();
   }
@@ -119,8 +105,8 @@ class CalculatorScreen extends StatelessWidget {
       ),
       builder: (context) {
         return ValueListenableBuilder(
-          valueListenable: Hive.box<String>('calculator_history').listenable(),
-          builder: (context, Box<String> box, _) {
+          valueListenable: Hive.box<HistoryModel>('calculator_history').listenable(),
+          builder: (context, Box<HistoryModel> box, _) {
             if (box.isEmpty) {
               return const Center(
                 child: Text('Belum ada riwayat', style: TextStyle(color: Colors.white54)),
@@ -151,7 +137,31 @@ class CalculatorScreen extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final history = box.getAt(box.length - 1 - index);
                       return ListTile(
-                        title: Text(history ?? '', style: const TextStyle(color: Colors.white, fontSize: 18)),
+                        title: Text(
+                          history?.expression ?? '',
+                          style: const TextStyle(color: Colors.white, fontSize: 18),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '= ${history?.result ?? ''}',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              history != null
+                                  ? DateFormat('dd/MM/yyyy HH:mm').format(history.timestamp)
+                                  : '',
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     },
                   ),

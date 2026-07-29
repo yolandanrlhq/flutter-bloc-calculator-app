@@ -3,6 +3,7 @@ import 'package:hive/hive.dart';
 import 'package:math_expressions/math_expressions.dart';
 import 'calculator_event.dart';
 import 'calculator_state.dart';
+import '../../data/history_model.dart';
 
 class CalculatorBloc extends Bloc<CalculatorEvent, CalculatorState> {
   CalculatorBloc() : super(CalculatorState()) {
@@ -45,7 +46,6 @@ class CalculatorBloc extends Bloc<CalculatorEvent, CalculatorState> {
       OperatorPressed event,
       Emitter<CalculatorState> emit,
   ) {
-
     if (state.expression.isEmpty) {
       if (event.operator == '-') {
         emit(state.copyWith(expression: '-'));
@@ -100,7 +100,6 @@ class CalculatorBloc extends Bloc<CalculatorEvent, CalculatorState> {
   }
 
   String convertPercentExpression(String exp) {
-
     exp = exp.replaceAllMapped(
       RegExp(r'(\d+(\.\d+)?)\*(\d+(\.\d+)?)%'),
       (m) {
@@ -156,7 +155,7 @@ class CalculatorBloc extends Bloc<CalculatorEvent, CalculatorState> {
     String newLastOperand = state.lastOperand;
 
     bool isOnlyNumber =
-      RegExp(r'^-?\d+(\.\d+)?%?$').hasMatch(currentExpression);
+        RegExp(r'^-?\d+(\.\d+)?%?$').hasMatch(currentExpression);
 
     if (isOnlyNumber && state.lastOperator.isNotEmpty && state.lastOperand.isNotEmpty) {
       currentExpression = "$currentExpression${state.lastOperator}${state.lastOperand}";
@@ -200,8 +199,14 @@ class CalculatorBloc extends Bloc<CalculatorEvent, CalculatorState> {
 
       String finalResult = formatResult(eval);
 
-      final historyBox = Hive.box<String>('calculator_history');
-      await historyBox.add("$currentExpression = $finalResult");
+      final historyBox = Hive.box<HistoryModel>('calculator_history');
+      final newHistory = HistoryModel(
+        expression: currentExpression,
+        result: finalResult,
+        timestamp: DateTime.now(),
+      );
+
+      await historyBox.add(newHistory);
       await historyBox.flush();
 
       emit(state.copyWith(
