@@ -1,5 +1,19 @@
 import 'package:flutter/material.dart';
 
+class CalculatorButtonSpec {
+  final String text;
+  final Color backgroundColor;
+  final Color textColor;
+  final VoidCallback onTap;
+
+  const CalculatorButtonSpec({
+    required this.text,
+    required this.backgroundColor,
+    required this.textColor,
+    required this.onTap,
+  });
+}
+
 class CalculatorButton extends StatelessWidget {
   final String text;
   final Color backgroundColor;
@@ -13,6 +27,7 @@ class CalculatorButton extends StatelessWidget {
     required this.textColor,
     required this.onTap,
   });
+
 
   @override
   Widget build(BuildContext context) {
